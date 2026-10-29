@@ -38,13 +38,19 @@ app.get('/api/items', async (req, res) => {
   }
 });
 
-// 2. CREATE NEW ITEM - Fixed wornToday to be a proper boolean default
+// 2. CREATE NEW ITEM
 app.post('/api/items', async (req, res) => {
   try {
-    const { name, brand, size, category, acquisitionMethod, cost, notes, materials } = req.body;
+    const { name, brand, size, category, acquisitionMethod, cost, wearCount, notes, materials } = req.body;
     const db = client.db('closet');
 
     const numCost = parseFloat(cost) || 0;
+    const numWears = parseInt(wearCount, 10) || 0;
+
+    // Cost per wear math: if 0 wears, CPW is the full cost. Otherwise, cost / wears.
+    const initialCPW = numWears > 0 
+      ? parseFloat((numCost / numWears).toFixed(2)) 
+      : numCost;
 
     const newItem = {
       name,
@@ -53,13 +59,13 @@ app.post('/api/items', async (req, res) => {
       category: category || 'Tops',
       acquisitionMethod: acquisitionMethod || 'Shop',
       cost: numCost,
+      wearCount: numWears,
+      costPerWear: initialCPW,
       notes: notes || '',
       materials: materials || [],
-      wearCount: 0,
-      costPerWear: numCost,
       createdAt: new Date(),
-      lastWornDate: null,
-      wornToday: false // <-- Fixed: Proper boolean default instead of schema object
+      lastWornDate: numWears > 0 ? new Date() : null,
+      wornToday: false
     };
 
     const result = await db.collection('items').insertOne(newItem);
@@ -69,7 +75,45 @@ app.post('/api/items', async (req, res) => {
   }
 });
 
-// 3. LOG / TOGGLE WEAR - Toggles wornToday between true and false cleanly
+// 3. UPDATE / EDIT AN ITEM
+app.put('/api/items/:id', async (req, res) => {
+  try {
+    const db = client.db('closet');
+    const itemId = new ObjectId(req.params.id);
+    const { name, brand, size, category, acquisitionMethod, cost, wearCount, notes, materials } = req.body;
+
+    const numCost = parseFloat(cost) || 0;
+    const numWears = parseInt(wearCount, 10) || 0;
+
+    const newCostPerWear = numWears > 0 
+      ? parseFloat((numCost / numWears).toFixed(2)) 
+      : numCost;
+
+    const updatedData = {
+      name,
+      brand: brand || 'Unknown',
+      size: size || 'N/A',
+      category: category || 'Tops',
+      acquisitionMethod: acquisitionMethod || 'Shop',
+      cost: numCost,
+      wearCount: numWears,
+      costPerWear: newCostPerWear,
+      notes: notes || '',
+      materials: materials || []
+    };
+
+    await db.collection('items').updateOne(
+      { _id: itemId },
+      { $set: updatedData }
+    );
+
+    res.status(200).json({ message: 'Item updated successfully', _id: itemId, ...updatedData });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update item' });
+  }
+});
+
+// 4. LOG / TOGGLE WEAR - Dynamically checks calendar date rollover
 app.patch('/api/items/:id/wear', async (req, res) => {
   try {
     const db = client.db('closet');
@@ -80,19 +124,22 @@ app.patch('/api/items/:id/wear', async (req, res) => {
       return res.status(404).json({ error: 'Item not found' });
     }
 
-    // Toggle the current state
-    const nextWornToday = !item.wornToday;
-    let newWearCount = item.wearCount;
-    let now = item.lastWornDate;
+    const todayStr = new Date().toISOString().split('T')[0];
+    const lastWornDateStr = item.lastWornDate 
+      ? new Date(item.lastWornDate).toISOString().split('T')[0] 
+      : null;
+    
+    const isWornToday = lastWornDateStr === todayStr;
 
-    if (nextWornToday) {
-      // Mark as worn today: increment wear count
+    let newWearCount = item.wearCount;
+    let newLastWorn = item.lastWornDate;
+
+    if (!isWornToday) {
       newWearCount += 1;
-      now = new Date();
+      newLastWorn = new Date();
     } else {
-      // Unmark: decrement wear count (ensure it never goes below 0)
       newWearCount = Math.max(0, newWearCount - 1);
-      now = null;
+      newLastWorn = null;
     }
 
     const newCostPerWear = newWearCount > 0 
@@ -105,8 +152,8 @@ app.patch('/api/items/:id/wear', async (req, res) => {
         $set: {
           wearCount: newWearCount,
           costPerWear: newCostPerWear,
-          lastWornDate: now,
-          wornToday: nextWornToday
+          lastWornDate: newLastWorn,
+          wornToday: !isWornToday
         }
       }
     );
@@ -115,8 +162,8 @@ app.patch('/api/items/:id/wear', async (req, res) => {
       message: 'Wear status updated successfully',
       wearCount: newWearCount,
       costPerWear: newCostPerWear,
-      lastWornDate: now,
-      wornToday: nextWornToday
+      lastWornDate: newLastWorn,
+      wornToday: !isWornToday
     });
   } catch (error) {
     res.status(500).json({ error: 'Failed to update wear status' });

@@ -25,14 +25,17 @@ export default function ClosetPage() {
     const [selectedSource, setSelectedSource] = useState<string>('All');
     const [sortBy, setSortBy] = useState<string>('mostWorn');
     const [showAddModal, setShowAddModal] = useState<boolean>(false);
+    const [editingItem, setEditingItem] = useState<ClosetItem | null>(null);
 
-    // new item form state
+    // Form state with wearCount included
     const [newItem, setNewItem] = useState({
         name: '',
         brand: '',
+        size: '',
         category: 'Tops',
         acquisitionMethod: 'Thrifted',
         cost: '',
+        wearCount: '0',
         notes: '',
         materials: [{ name: 'Cotton', percentage: 100 }]
     });
@@ -49,6 +52,42 @@ export default function ClosetPage() {
         }
     };
 
+    const resetForm = () => {
+        setNewItem({
+            name: '',
+            brand: '',
+            size: '',
+            category: 'Tops',
+            acquisitionMethod: 'Thrifted',
+            cost: '',
+            wearCount: '0',
+            notes: '',
+            materials: [{ name: 'Cotton', percentage: 100 }]
+        });
+        setEditingItem(null);
+    };
+
+    const handleOpenAddModal = () => {
+        resetForm();
+        setShowAddModal(true);
+    };
+
+    const handleOpenEditModal = (item: ClosetItem) => {
+        setEditingItem(item);
+        setNewItem({
+            name: item.name || '',
+            brand: item.brand || '',
+            size: item.size || '',
+            category: item.category || 'Tops',
+            acquisitionMethod: item.acquisitionMethod || 'Thrifted',
+            cost: item.cost !== undefined ? item.cost.toString() : '',
+            wearCount: item.wearCount !== undefined ? item.wearCount.toString() : '0',
+            notes: item.notes || '',
+            materials: item.materials && item.materials.length > 0 ? item.materials : [{ name: 'Cotton', percentage: 100 }]
+        });
+        setShowAddModal(true);
+    };
+
     const handleAddItem = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
@@ -57,16 +96,45 @@ export default function ClosetPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     ...newItem,
-                    cost: Number(newItem.cost) || 0
+                    cost: Number(newItem.cost) || 0,
+                    wearCount: Number(newItem.wearCount) || 0
                 })
             });
             if (res.ok) {
                 setShowAddModal(false);
-                setNewItem({ name: '', brand: '', category: 'Tops', acquisitionMethod: 'Thrifted', cost: '', notes: '', materials: [{ name: 'Cotton', percentage: 100 }]});
+                resetForm();
                 fetchItems();
             }
         } catch (err) {
             console.error('Error adding item:', err);
+        }
+    };
+
+    const handleUpdateItem = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!editingItem) return;
+
+        const id = typeof editingItem._id === 'object' ? (editingItem._id as any).toString() : editingItem._id;
+        if (!id) return;
+
+        try {
+            const res = await fetch(`http://localhost:5000/api/items/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ...newItem,
+                    cost: Number(newItem.cost) || 0,
+                    wearCount: Number(newItem.wearCount) || 0
+                })
+            });
+
+            if (res.ok) {
+                setShowAddModal(false);
+                resetForm();
+                fetchItems();
+            }
+        } catch (err) {
+            console.error('Error updating item:', err);
         }
     };
 
@@ -87,19 +155,17 @@ export default function ClosetPage() {
 
     const totalPercentage = newItem.materials.reduce((sum, m) => sum + (Number(m.percentage) || 0), 0);
 
-    // filter by source
     const filteredItems = items.filter(item => {
         if (selectedSource === 'All') return true;
         return item.acquisitionMethod?.toLowerCase() === selectedSource.toLowerCase();
     });
 
-    // sort items
     const sortedItems = [...filteredItems].sort((a, b) => {
         const cpwA = a.costPerWear ?? (a.wearCount > 0 ? a.cost / a.wearCount : a.cost);
         const cpwB = b.costPerWear ?? (b.wearCount > 0 ? b.cost / b.wearCount : b.cost);
 
         if (sortBy === 'mostWorn') return b.wearCount - a.wearCount;
-        if (sortBy === 'costPerWear') return cpwB - cpwA;
+        if (sortBy === 'costPerWear') return cpwA - cpwB;
         if (sortBy === 'costPaid') return (b.cost || 0) - (a.cost || 0);
         if (sortBy === 'name') return a.name.localeCompare(b.name);
         return 0;
@@ -108,20 +174,20 @@ export default function ClosetPage() {
     return (
         <div style={{ background: '#f7f6f0', minHeight: '100vh', padding: '40px 60px', fontFamily: "Courier New, Courier, monospace", color: '#2b3a2f'}}>
 
-            {/* page header & add item */}
+            {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <h1 style={titleStyle}>Closet</h1>
-                <button onClick={() => setShowAddModal(true)} style={addItemBtnStyle}>
+                <button onClick={handleOpenAddModal} style={addItemBtnStyle}>
                     + Add Item
                 </button>
             </div>
 
             <hr style={{ border: 'none', borderTop: '1px solid #e0dec8', marginBottom: '30px' }} />
 
-            {/* filter buttons and sort dropdown */}
+            {/* Filters & Sorting */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
                 <div style={{ display: 'flex', gap: '8px' }}>
-                    {['All', 'Thrifted', 'Hand-Me-Down', 'Gifted', 'New'].map((source) => (
+                    {['All', 'Thrifted', 'Hand-Me-Down', 'Gift', 'Shop'].map((source) => (
                         <button
                             key={source}
                             onClick={() => setSelectedSource(source)}
@@ -145,13 +211,14 @@ export default function ClosetPage() {
                 </div>
             </div>
 
-            {/* items table */}
+            {/* Items Table */}
             <div style={{ background: '#f2f0e6', border: '1px solid #dcd8c8', borderRadius: '8px', overflow: 'hidden' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
                     <thead>
                         <tr style={{ background: '#eae7dc', color: '#4d6353', fontSize: '11px', letterSpacing: '0.5px' }}>
                             <th style={thStyle}>ACTION</th>
                             <th style={thStyle}>ITEM</th>
+                            <th style={thStyle}>SIZE</th>
                             <th style={thStyle}>CATEGORY</th>
                             <th style={thStyle}>SOURCE</th>
                             <th style={thStyle}>COST</th>
@@ -159,18 +226,25 @@ export default function ClosetPage() {
                             <th style={thStyle}>COST / WEAR</th>
                             <th style={thStyle}>MATERIALS</th>
                             <th style={thStyle}>LAST WORN</th>
+                            <th style={thStyle}>EDIT</th>
                         </tr>
                     </thead>
                     <tbody>
                         {sortedItems.length === 0 ? (
                             <tr>
-                                <td colSpan={8} style={{ padding: '30px', textAlign: 'center', color: '#666', fontStyle: 'italic' }}>
+                                <td colSpan={11} style={{ padding: '30px', textAlign: 'center', color: '#666', fontStyle: 'italic' }}>
                                     No clothing items match this filter.
                                 </td>
                             </tr>
                         ) : (
                             sortedItems.map((item, idx) => {
-                                const cpw = item.costPerWear ?? (item.wearCount > 0 ? item.cost / item.wearCount : item.cost);
+                                const todayStr = new Date().toISOString().split('T')[0];
+                                const isWornToday = item.lastWornDate 
+                                    ? new Date(item.lastWornDate).toISOString().split('T')[0] === todayStr 
+                                    : false;
+                                
+                                const currentWears = item.wearCount || 0;
+                                const cpw = currentWears > 0 ? item.cost / currentWears : item.cost;
                                 const formattedDate = item.lastWornDate ? new Date(item.lastWornDate).toISOString().split('T')[0] : '—';
 
                                 return (
@@ -180,30 +254,33 @@ export default function ClosetPage() {
                                                 onClick={async () => {
                                                     try {
                                                         const res = await fetch(`http://localhost:5000/api/items/${item._id}/wear`, { method: 'PATCH' });
-                                                        if (res.ok) {
-                                                            fetchItems(); // Refreshes the closet list to show updated wear count & last worn date
-                                                        }
+                                                        if (res.ok) fetchItems(); 
                                                     } catch (err) {
-                                                        console.error('Error logging wear:', err);
+                                                        console.error('Error toggling wear:', err);
                                                     }
                                                 }}
                                                 style={{
-                                                    background: '#2d4a36',
-                                                    color: '#fff',
-                                                    border: 'none',
+                                                    background: isWornToday ? '#e3ebd8' : '#2d4a36',
+                                                    color: isWornToday ? '#2d4a36' : '#ffffff',
+                                                    border: isWornToday ? '1px solid #2d4a36' : 'none',
                                                     borderRadius: '4px',
                                                     padding: '6px 12px',
                                                     cursor: 'pointer',
                                                     fontSize: '11px',
-                                                    fontFamily: 'Courier New, monospace'
+                                                    fontFamily: 'Courier New, monospace',
+                                                    fontWeight: 'bold',
+                                                    transition: 'all 0.2s ease'
                                                 }}
                                             >
-                                                + Wear
+                                                {isWornToday ? '✓ worn' : '+ wear'}
                                             </button>
                                         </td>
                                         <td style={tdStyle}>
                                             <div style={{ fontWeight: 'bold', fontFamily: 'sans-serif', color: '#1f2e23', fontSize: '14px' }}>{item.name}</div>
                                             <div style={{ fontSize: '12px', color: '#5b7562', fontFamily: 'sans-serif' }}>{item.brand || 'Unknown'}</div>
+                                        </td>
+                                        <td style={{ ...tdStyle, fontFamily: 'Courier New, monospace', color: '#4d6353' }}>
+                                            {item.size || '—'} 
                                         </td>
                                         <td style={{ ...tdStyle, fontFamily: 'sans-serif', color: '#4d6353' }}>
                                             {item.category ? item.category.charAt(0).toUpperCase() + item.category.slice(1).toLowerCase() : 'Tops'}
@@ -214,7 +291,7 @@ export default function ClosetPage() {
                                             </span>
                                         </td>
                                         <td style={{ ...tdStyle, fontFamily: 'Courier New, monospace' }}>${item.cost}</td>
-                                        <td style={{ ...tdStyle, fontFamily: 'Courier New, monospace' }}>{item.wearCount || 0}</td>
+                                        <td style={{ ...tdStyle, fontFamily: 'Courier New, monospace' }}>{currentWears}</td>
                                         <td style={{ ...tdStyle, fontFamily: 'Courier New, monospace', fontWeight: 'bold', color: cpw > 5 ? '#a84e2a' : '#2d4a36' }}>
                                             ${typeof cpw === 'number' ? cpw.toFixed(2) : cpw}
                                         </td>
@@ -232,6 +309,24 @@ export default function ClosetPage() {
                                             </div>
                                         </td>
                                         <td style={{ ...tdStyle, fontFamily: 'Courier New, monospace', color: '#5b7562' }}>{formattedDate}</td>
+                                        <td style={tdStyle}>
+                                            <button 
+                                                onClick={() => handleOpenEditModal(item)}
+                                                style={{
+                                                    background: 'transparent',
+                                                    color: '#2d4a36',
+                                                    border: '1px solid #2d4a36',
+                                                    borderRadius: '4px',
+                                                    padding: '6px 12px',
+                                                    cursor: 'pointer',
+                                                    fontSize: '11px',
+                                                    fontFamily: 'Courier New, monospace',
+                                                    fontWeight: 'bold'
+                                                }}
+                                            >
+                                                Edit
+                                            </button>
+                                        </td>
                                     </tr>
                                 );
                             })
@@ -239,26 +334,34 @@ export default function ClosetPage() {
                     </tbody>
                 </table>
             </div>
-        
 
-            {/* add item modal */}
+            {/* Add / Edit Modal */}
             {showAddModal && (
                 <div style={modalOverlayStyle}>
                     <div style={modalContentStyle}>
                         <div style={{ fontSize: '11px', letterSpacing: '1px', color: '#2d4a36', marginBottom: '16px' }}>
-                            – NEW ITEM
+                            {editingItem ? 'EDIT ITEM' : 'NEW ITEM'}
                         </div>
-                        <form onSubmit={handleAddItem} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                        <form onSubmit={editingItem ? handleUpdateItem : handleAddItem} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                            {/* Row 1: Item Name */}
+                            <div>
+                                <label style={labelStyle}>ITEM NAME</label>
+                                <input required value={newItem.name} onChange={e => setNewItem({ ...newItem, name: e.target.value})} style={inputStyle} placeholder="e.g. Linen Blazer" />
+                            </div>
+
+                            {/* Row 2: Brand & Size */}
                             <div style={{ display: 'flex', gap: '12px' }}>
-                                <div style={{ flex: 1 }}>
-                                    <label style={labelStyle}>ITEM NAME *</label>
-                                    <input required value={newItem.name} onChange={e => setNewItem({ ...newItem, name: e.target.value})} style={inputStyle} placeholder="e.g. Linen Blazer" />
-                                </div>
                                 <div style={{ flex: 1 }}>
                                     <label style={labelStyle}>BRAND</label>
                                     <input value={newItem.brand} onChange={e => setNewItem({ ...newItem, brand: e.target.value })} style={inputStyle} placeholder="e.g. Vintage / Unknown" />
                                 </div>
+                                <div style={{ flex: 1 }}>
+                                    <label style={labelStyle}>SIZE</label>
+                                    <input value={newItem.size} onChange={e => setNewItem({ ...newItem, size: e.target.value })} style={inputStyle} placeholder="e.g. M, 8, OSFA" />
+                                </div>
                             </div>
+
+                            {/* Row 3: Category & Source */}
                             <div style={{ display: 'flex', gap: '12px' }}>
                                 <div style={{ flex: 1 }}>
                                     <label style={labelStyle}>CATEGORY</label>
@@ -280,18 +383,26 @@ export default function ClosetPage() {
                                     </select>
                                 </div>
                             </div>
+
+                            {/* Row 4: Cost Paid & Total Wears (Side by Side) */}
                             <div style={{ display: 'flex', gap: '12px' }}>
                                 <div style={{ flex: 1 }}>
                                     <label style={labelStyle}>COST PAID ($)</label>
                                     <input type="number" value={newItem.cost} onChange={e => setNewItem({ ...newItem, cost: e.target.value })} style={inputStyle} placeholder="0" />
                                 </div>
                                 <div style={{ flex: 1 }}>
-                                    <label style={labelStyle}>NOTES</label>
-                                    <input value={newItem.notes} onChange={e => setNewItem({ ...newItem, notes: e.target.value })} style={inputStyle} placeholder="Condition, fit, etc." />
+                                    <label style={labelStyle}>TOTAL WEARS</label>
+                                    <input type="number" value={newItem.wearCount} onChange={e => setNewItem({ ...newItem, wearCount: e.target.value })} style={inputStyle} placeholder="0" />
                                 </div>
                             </div>
 
-                            {/* Materials Section */}
+                            {/* Row 5: Notes (Full Width) */}
+                            <div>
+                                <label style={labelStyle}>NOTES</label>
+                                <input value={newItem.notes} onChange={e => setNewItem({ ...newItem, notes: e.target.value })} style={inputStyle} placeholder="Condition, fit, etc." />
+                            </div>
+
+                            {/* Row 6: Materials */}
                             <div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                                     <label style={labelStyle}>MATERIALS <span style={{ color: totalPercentage === 100 ? '#2d4a36' : '#a84e2a' }}>(MUST SUM TO 100%)</span></label>
@@ -323,16 +434,19 @@ export default function ClosetPage() {
                                 </div>
                             </div>
 
+                            {/* Form Actions */}
                             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginTop: '10px' }}>
-                                <button type="submit" style={addItemBtnStyle}>Add to Closet</button>
-                                <button type="button" onClick={() => setShowAddModal(false)} style={{ background: 'none', border: 'none', color: '#2d4a36', fontSize: '14px', cursor: 'pointer', fontFamily: 'Courier New, monospace' }}>Cancel</button>
+                                <button type="submit" style={addItemBtnStyle}>
+                                    {editingItem ? 'Save Changes' : 'Add to Closet'}
+                                </button>
+                                <button type="button" onClick={() => { setShowAddModal(false); resetForm(); }} style={{ background: 'none', border: 'none', color: '#2d4a36', fontSize: '14px', cursor: 'pointer', fontFamily: 'Courier New, monospace' }}>Cancel</button>
                             </div>
                         </form>
                     </div>
                 </div>
             )}
         </div>
-    )
+    );
 }
 
 // styles

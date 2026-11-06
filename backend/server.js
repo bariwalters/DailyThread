@@ -64,8 +64,8 @@ app.post('/api/items', async (req, res) => {
       notes: notes || '',
       materials: materials || [],
       createdAt: new Date(),
-      lastWornDate: numWears > 0 ? new Date() : null,
-      wornToday: false
+      lastWornDate: null,   // <-- FIXED: Do not lock lastWornDate to today upon creation
+      wornToday: false      // <-- FIXED: Always defaults to false so it shows "+ wear"
     };
 
     const result = await db.collection('items').insertOne(newItem);
@@ -113,7 +113,25 @@ app.put('/api/items/:id', async (req, res) => {
   }
 });
 
-// 4. LOG / TOGGLE WEAR - Dynamically checks calendar date rollover
+// 4. DELETE AN ITEM
+app.delete('/api/items/:id', async (req, res) => {
+  try {
+    const db = client.db('closet');
+    const itemId = new ObjectId(req.params.id);
+
+    const result = await db.collection('items').deleteOne({ _id: itemId });
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+
+    res.status(200).json({ message: 'Item deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete item' });
+  }
+});
+
+// 5. LOG / TOGGLE WEAR - Dynamically checks calendar date rollover
 app.patch('/api/items/:id/wear', async (req, res) => {
   try {
     const db = client.db('closet');

@@ -41,7 +41,6 @@ export default function AnalyticsPage() {
     const totalItems = items.length;
 
     // --- 1. MATERIAL COMPOSITION CALCULATIONS ---
-    // Averages each material's percentage across all items in the database
     const materialTotals: { [key: string]: number } = {};
     items.forEach(item => {
         if (item.materials && Array.isArray(item.materials)) {
@@ -53,11 +52,23 @@ export default function AnalyticsPage() {
         }
     });
 
-    // Convert aggregated totals into averaged percentages across all items
     const materialAverages = Object.keys(materialTotals).map(name => ({
         name,
         percentage: totalItems > 0 ? Math.round(materialTotals[name] / totalItems) : 0
     })).sort((a, b) => b.percentage - a.percentage);
+
+    // Build dynamic conic-gradient for Material Composition chart
+    let materialCurrentDeg = 0;
+    const materialGradientStops = materialAverages.map((mat, i) => {
+        const start = materialCurrentDeg;
+        const span = (mat.percentage / 100) * 360;
+        materialCurrentDeg += span;
+        const color = getMaterialColor(i);
+        return `${color} ${start}deg ${materialCurrentDeg}deg`;
+    });
+    const materialConicStyle = materialAverages.length > 0 
+        ? `conic-gradient(${materialGradientStops.join(', ')})` 
+        : '#dcd8c8';
 
     // --- 2. ACQUISITION SOURCES CALCULATIONS ---
     let thriftedCount = 0;
@@ -74,22 +85,32 @@ export default function AnalyticsPage() {
         } else if (source.includes('gift')) {
             giftCount++;
         } else {
-            newBrandCount++; // Shop / New
+            newBrandCount++; // Shop
         }
     });
-
-    const getSourcePct = (count: number) => (totalItems > 0 ? Math.round((count / totalItems) * 100) : 0);
 
     const sourcesData = [
         { label: 'Thrifted', count: thriftedCount, color: '#2d4a36' },
         { label: 'Hand-Me-Down', count: handMeDownCount, color: '#614d23' },
         { label: 'Gifted', count: giftCount, color: '#826023' },
-        { label: 'New', count: newBrandCount, color: '#a3b899' },
+        { label: 'Shop', count: newBrandCount, color: '#a3b899' },
     ];
 
-    // --- 3. SOURCE SUSTAINABILITY CALCULATION ---
-    // Sustainable = Thrifted, Gifted, or Hand-Me-Down
-    const sustainableTotal = thriftedCount + handMeDownCount + giftCount;
+    // Build dynamic conic-gradient for Acquisition Sources chart
+    let sourceCurrentDeg = 0;
+    const sourceGradientStops = sourcesData.map(src => {
+        const start = sourceCurrentDeg;
+        const pct = totalItems > 0 ? src.count / totalItems : 0;
+        const span = pct * 360;
+        sourceCurrentDeg += span;
+        return `${src.color} ${start}deg ${sourceCurrentDeg}deg`;
+    });
+    const sourceConicStyle = totalItems > 0 
+        ? `conic-gradient(${sourceGradientStops.join(', ')})` 
+        : '#dcd8c8';
+
+    // --- 3. SOURCE SUSTAINABILITY CALCULATION (Only Thrifted & Hand-Me-Downs) ---
+    const sustainableTotal = thriftedCount + handMeDownCount;
     const sustainabilityPercentage = totalItems > 0 ? Math.round((sustainableTotal / totalItems) * 100) : 0;
 
     if (loading) {
@@ -123,9 +144,9 @@ export default function AnalyticsPage() {
                         </div>
                     </div>
 
-                    {/* Visual Donut / Placeholder Ring Chart */}
+                    {/* Dynamic Material Donut Chart */}
                     <div style={{ display: 'flex', justifyContent: 'center', margin: '30px 0' }}>
-                        <div style={donutContainerStyle}>
+                        <div style={{ ...donutContainerStyle, background: materialConicStyle }}>
                             <div style={donutInnerCircleStyle}>
                                 <div style={{ fontSize: '22px', fontWeight: 'bold', color: '#2d4a36' }}>{totalItems}</div>
                                 <div style={{ fontSize: '10px', color: '#666' }}>ITEMS</div>
@@ -165,59 +186,57 @@ export default function AnalyticsPage() {
                 </div>
 
                 {/* RIGHT CARD: Acquisition Sources & Sustainability */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
-                    
-                    {/* Sources Card */}
-                    <div style={cardStyle}>
-                        <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-                            <div style={cardTitleStyle}>ACQUISITION SOURCES</div>
-                            <div style={{ fontSize: '13px', color: '#5b7562', marginTop: '4px' }}>
-                                How you obtained each item
-                            </div>
-                        </div>
-
-                        {/* Visual Donut / Ring Chart */}
-                        <div style={{ display: 'flex', justifyContent: 'center', margin: '30px 0' }}>
-                            <div style={{ ...donutContainerStyle, background: 'conic-gradient(#2d4a36 0% 40%, #614d23 40% 70%, #a3b899 70% 90%, #d6e2d8 90% 100%)' }}>
-                                <div style={donutInnerCircleStyle}>
-                                    <div style={{ fontSize: '22px', fontWeight: 'bold', color: '#2d4a36' }}>{totalItems}</div>
-                                    <div style={{ fontSize: '10px', color: '#666' }}>TOTAL</div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Legend */}
-                        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '14px', marginBottom: '20px' }}>
-                            {sourcesData.map((src, i) => (
-                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}>
-                                    <span style={{ width: '10px', height: '10px', background: src.color, borderRadius: '2px', display: 'inline-block' }}></span>
-                                    <span style={{ fontWeight: 'bold', color: '#2d4a36' }}>{src.label}</span>
-                                </div>
-                            ))}
+                <div style={cardStyle}>
+                    <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+                        <div style={cardTitleStyle}>ACQUISITION SOURCES</div>
+                        <div style={{ fontSize: '13px', color: '#5b7562', marginTop: '4px' }}>
+                            How you obtained each item
                         </div>
                     </div>
 
-                    {/* Source Sustainability Sub-Card */}
-                    <div style={{ background: '#edf2ed', border: '1px solid #dcd8c8', borderRadius: '12px', padding: '24px' }}>
-                        <div style={{ textAlign: 'center', fontSize: '13px', fontWeight: 'bold', color: '#2d4a36', marginBottom: '16px', letterSpacing: '0.5px' }}>
-                            Source Sustainability
-                        </div>
-
-                        {/* Progress Bar */}
-                        <div style={{ background: '#dcd8c8', borderRadius: '10px', height: '12px', width: '100%', overflow: 'hidden', marginBottom: '16px' }}>
-                            <div style={{ background: '#2d4a36', height: '100%', width: `${sustainabilityPercentage}%`, borderRadius: '10px', transition: 'width 0.4s ease' }}></div>
-                        </div>
-
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: '12px', color: '#4d6353' }}>
-                                {sustainableTotal} of {totalItems} items are thrifted, gifted, or hand-me-downs.
-                            </span>
-                            <span style={{ fontSize: '15px', fontWeight: 'bold', color: '#2d4a36', fontFamily: 'Courier New, monospace' }}>
-                                {sustainabilityPercentage}%
-                            </span>
+                    {/* Dynamic Acquisition Sources Donut Chart */}
+                    <div style={{ display: 'flex', justifyContent: 'center', margin: '30px 0' }}>
+                        <div style={{ ...donutContainerStyle, background: sourceConicStyle }}>
+                            <div style={donutInnerCircleStyle}>
+                                <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#2d4a36' }}>{sustainabilityPercentage}%</div>
+                                <div style={{ fontSize: '9px', color: '#666', textAlign: 'center', padding: '0 4px' }}>SUSTAINABLE</div>
+                            </div>
                         </div>
                     </div>
 
+                    {/* Legend */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '14px', marginBottom: '30px' }}>
+                        {sourcesData.map((src, i) => (
+                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}>
+                                <span style={{ width: '10px', height: '10px', background: src.color, borderRadius: '2px', display: 'inline-block' }}></span>
+                                <span style={{ fontWeight: 'bold', color: '#2d4a36' }}>{src.label}</span>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div style={{ textAlign: 'center', fontSize: '12px', color: '#5b7562', marginBottom: '20px', fontStyle: 'italic' }}>
+                        {sustainableTotal} of {totalItems} items are thrifted or hand-me-downs.
+                    </div>
+
+                    <hr style={{ border: 'none', borderTop: '1px solid #e0dec8', marginBottom: '20px' }} />
+
+                    {/* Breakdown List */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                        {sourcesData.map((src, i) => {
+                            const pct = totalItems > 0 ? Math.round((src.count / totalItems) * 100) : 0;
+                            return (
+                                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                        <span style={{ width: '8px', height: '8px', background: src.color, borderRadius: '50%', display: 'inline-block' }}></span>
+                                        <span>{src.label}</span>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                                        <span style={{ fontWeight: 'bold', fontFamily: 'Courier New, monospace' }}>{pct}%</span>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
                 </div>
 
             </div>
@@ -251,7 +270,6 @@ const donutContainerStyle: React.CSSProperties = {
     width: '160px',
     height: '160px',
     borderRadius: '50%',
-    background: 'conic-gradient(#2d4a36 0% 53%, #5b7562 53% 69%, #8fa392 69% 85%, #a3b899 85% 96%, #614d23 96% 100%)',
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',

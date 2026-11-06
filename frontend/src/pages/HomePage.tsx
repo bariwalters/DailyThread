@@ -17,7 +17,7 @@ interface ClosetItem {
 export default function HomePage() {
   const [items, setItems] = useState<ClosetItem[]>([]);
 
-  useEffect(() => {fetchItems()}, []);
+  useEffect(() => { fetchItems() }, []);
 
   const fetchItems = async () => {
     try {
@@ -26,13 +26,13 @@ export default function HomePage() {
       if (Array.isArray(data)) 
         setItems(data);
     } catch (err) {
-      console.error('Error getching items:', err);
+      console.error('Error fetching items:', err);
     }
   };
 
   const handleLogWear = async (id: string) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/items/${id}/wear`, {method: 'PATCH'});
+      const res = await fetch(`http://localhost:5000/api/items/${id}/wear`, { method: 'PATCH' });
       const data = await res.json();
       if (!res.ok) {
         alert(data.error);
@@ -47,21 +47,15 @@ export default function HomePage() {
   // stats computation
   const totalItems = items.length;
 
-  // sustainable rate: percentage of items acquired by thrifting, gifts, hand-me-downs
-  const sustainableItems = items. filter(i => ['thrifted', 'gidt', 'hand me down'].includes((i.acquisitionMethod || ' ').toLowerCase())).length;
+  const sustainableItems = items.filter(i => ['thrifted', 'hand me down'].includes((i.acquisitionMethod || ' ').toLowerCase())).length;
   const sustainableRate = totalItems > 0 ? Math.round((sustainableItems / totalItems) * 100) : 0;
 
-  // avg cost / wear across all items
   const totalCPW = items.reduce((sum, item) => sum + (item.costPerWear || item.cost || 0), 0);
   const avgCPW = totalItems > 0 ? (totalCPW / totalItems).toFixed(2) : '0.00';
 
-  // total wears logged
   const totalWears = items.reduce((sum, item) => sum + (item.wearCount || 0), 0);
 
-  // today's date string
   const todayStr = new Date().toISOString().split('T')[0];
-
-  // all items marked as worn today
   const todaysItemsList = items.filter(item => item.wornToday);
 
   return (
@@ -71,17 +65,17 @@ export default function HomePage() {
       <h1 style={{ fontFamily: 'Georgia, serif', fontSize: '48px', fontWeight: 'normal', margin: '0 0 30px 0', color: '#1f2e23' }}>
         Dashboard
       </h1>
-      <hr style={{ border: 'none', borderTop: '1px solid #e0dec8', marginBottom: '40px' }} />
+      <hr style={{ border: 'none', borderTop: '1px solid #e0dec8', marginBottom: '30px' }} />
       
-      {/* stat cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4 1fr)', gap: '20px', marginBottom: '40px' }}>
+      {/* 1. COMPACT STAT CARDS */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', marginBottom: '60px' }}>
         <div style={statCardStyle}>
             <span style={statLabelStyle}>ITEMS IN CLOSET</span>
             <h2 style={statValueStyle}>{totalItems}</h2>
         </div>
 
         <div style={statCardStyle}>
-          <span style={statLabelStyle}>SUSTAINABLE RATE</span>
+          <span style={statLabelStyle}>SOURCE SUSTAINABILITY</span>
           <h2 style={statValueStyle}>{sustainableRate}%</h2>
         </div>
 
@@ -96,33 +90,36 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* worn today section */}
-      <section style={{ marginBottom: '40px' }}> 
+      {/* 2. WHAT YOU WORE TODAY */}
+      <section style={{ marginBottom: '35px' }}> 
         <p style={sectionHeaderStyle}>
           WHAT YOU WORE TODAY! <span style={{ opacity: 0.6, marginLeft: '8px' }}>{todayStr}</span>
         </p>
 
         {todaysItemsList.length > 0 ? (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '24px' }}>
             {todaysItemsList.map((todaysItem) => (
               <div key={todaysItem._id} style={wearTodayCardStyle}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div>
-                    <h3 style={{ margin: '0 0 4px 0', fontSize: '18px', fontFamily: 'sans-serif', fontWeight: 'bold' }}>{todaysItem.name}</h3>
-                    <p style={{ margin: '0 0 12px 0', fontSize: '13px', color: '#4d6353', fontFamily: 'sans-serif' }}>{todaysItem.brand || 'Unknown Brand'}</p>
+                    <h3 style={{ margin: '0 0 6px 0', fontSize: '21px', fontFamily: 'sans-serif', fontWeight: 'bold' }}>{todaysItem.name}</h3>
+                    <p style={{ margin: '0 0 16px 0', fontSize: '14px', color: '#4d6353', fontFamily: 'sans-serif' }}>{todaysItem.brand || 'Unknown Brand'}</p>
                   </div>
-                  {/* Clicking this button unmarks the item and toggles it off */}
                   <button onClick={() => todaysItem._id && handleLogWear(todaysItem._id)} style={checkmarkBtnStyle} title="Unmark Worn">✓</button>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#2d4a36' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#2d4a36' }}>
                   <span>{todaysItem.acquisitionMethod || 'Shop'}</span>
-                  <span>{todaysItem.wearCount || 0} wears</span>
+                  <span>{todaysItem.wearCount || 0} total wears</span>
                 </div>
               </div>
             ))}
           </div>
         ) : (
-          <p style={{ fontSize: '14px', color: '#666', fontStyle: 'italic' }}>No items in closet yet.</p>
+          <div style={{ background: '#f2f0e6', border: '1px dashed #dcd8c8', borderRadius: '10px', padding: '30px', textAlign: 'center' }}>
+            <p style={{ fontSize: '14px', color: '#666', fontStyle: 'italic', margin: 0 }}>
+              No items logged as worn today yet. Go to your closet to log what you're wearing!
+            </p>
+          </div>
         )}
       </section>
     </div>
@@ -134,15 +131,16 @@ const statCardStyle: React.CSSProperties = {
   background: '#eae7dc',
   border: '1px solid #dcd8c8',
   borderRadius: '8px',
-  padding: '20px',
+  padding: '16px 20px',
   display: 'flex',
   flexDirection: 'column',
   justifyContent: 'space-between',
-  height: '110px'
+  height: '85px', // Fixed compact height instead of oversized square ratio
+  boxSizing: 'border-box'
 };
 
 const statLabelStyle: React.CSSProperties = {
-  fontSize: '11px',
+  fontSize: '10px',
   letterSpacing: '0.5px',
   color: '#4d6353',
   fontWeight: 'bold'
@@ -151,7 +149,7 @@ const statLabelStyle: React.CSSProperties = {
 const statValueStyle: React.CSSProperties = {
   margin: 0,
   fontFamily: 'Georgia, serif',
-  fontSize: '36px',
+  fontSize: '28px', // Scaled down font size to fit neatly
   fontWeight: 'normal',
   color: '#1f2e23'
 };
@@ -161,21 +159,22 @@ const sectionHeaderStyle: React.CSSProperties = {
   letterSpacing: '1px',
   color: '#4d6353',
   fontWeight: 'bold',
-  marginBottom: '15px'
+  marginBottom: '12px'
 };
 
 const wearTodayCardStyle: React.CSSProperties = {
   background: '#dbe7dc',
   border: '1px solid #b8d1bb',
-  borderRadius: '8px',
-  padding: '20px',
-  width: '280px',
-  boxSizing: 'border-box'
+  borderRadius: '10px',
+  padding: '24px',          // Increased padding
+  width: '340px',          // Wider box layout
+  boxSizing: 'border-box',
+  alignItems: 'center'
 };
 
 const checkmarkBtnStyle: React.CSSProperties = {
-  width: '28px',
-  height: '28px',
+  width: '32px',           // Larger button
+  height: '32px',          // Larger button
   borderRadius: '50%',
   background: '#2d4a36',
   color: '#ffffff',
@@ -184,6 +183,6 @@ const checkmarkBtnStyle: React.CSSProperties = {
   alignItems: 'center',
   justifyContent: 'center',
   cursor: 'pointer',
-  fontSize: '14px',
+  fontSize: '15px',
   fontWeight: 'bold'
 };

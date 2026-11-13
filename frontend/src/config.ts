@@ -1,5 +1,5 @@
-const API_BASE_URL = 
-  process.env.NODE_ENV === 'production'
+const API_BASE_URL: string = 
+  import.meta.env.MODE === 'production'
     ? 'https://dailythread.onrender.com'
     : 'http://localhost:5000';
 

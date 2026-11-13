@@ -64,8 +64,8 @@ app.post('/api/items', async (req, res) => {
       notes: notes || '',
       materials: materials || [],
       createdAt: new Date(),
-      lastWornDate: null,   // <-- FIXED: Do not lock lastWornDate to today upon creation
-      wornToday: false      // <-- FIXED: Always defaults to false so it shows "+ wear"
+      lastWornDate: null,
+      wornToday: false
     };
 
     const result = await db.collection('items').insertOne(newItem);

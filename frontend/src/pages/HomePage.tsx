@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import API_BASE_URL from '../config';
 
 interface ClosetItem {
   _id?: string;
@@ -16,23 +17,28 @@ interface ClosetItem {
 
 export default function HomePage() {
   const [items, setItems] = useState<ClosetItem[]>([]);
+  const [dbError, setDbError] = useState<boolean>(false);
 
   useEffect(() => { fetchItems() }, []);
 
   const fetchItems = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/items');
+      const res = await fetch(`${API_BASE_URL}/api/items`);
+      if (!res.ok) throw new Error('Failed to fetch');
       const data = await res.json();
-      if (Array.isArray(data)) 
+      if (Array.isArray(data)) {
         setItems(data);
+        setDbError(false);
+      }
     } catch (err) {
       console.error('Error fetching items:', err);
+      setDbError(true);
     }
   };
 
   const handleLogWear = async (id: string) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/items/${id}/wear`, { method: 'PATCH' });
+      const res = await fetch(`${API_BASE_URL}/api/items/${id}/wear`, { method: 'PATCH' });
       const data = await res.json();
       if (!res.ok) {
         alert(data.error);
@@ -62,9 +68,14 @@ export default function HomePage() {
     <div style={{ background: '#f7f6f0', minHeight: '100vh', padding: '40px 60px', fontFamily: "'Courier New', Courier, monospace", color: '#2b3a2f' }}>
       
       {/* dashboard title */}
-      <h1 style={{ fontFamily: 'Georgia, serif', fontSize: '48px', fontWeight: 'normal', margin: '0 0 30px 0', color: '#1f2e23' }}>
+      <h1 style={{ fontFamily: 'Georgia, serif', fontSize: '48px', fontWeight: 'normal', margin: '0 0 10px 0', color: '#1f2e23' }}>
         Dashboard
       </h1>
+      {dbError && (
+        <div style={{ color: '#a84e2a', fontSize: '13px', marginBottom: '15px', fontWeight: 'bold' }}>
+          Unable to connect to the database
+        </div>
+      )}
       <hr style={{ border: 'none', borderTop: '1px solid #e0dec8', marginBottom: '30px' }} />
       
       {/* 1. COMPACT STAT CARDS */}
@@ -135,7 +146,7 @@ const statCardStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   justifyContent: 'space-between',
-  height: '85px', // Fixed compact height instead of oversized square ratio
+  height: '85px',
   boxSizing: 'border-box'
 };
 
@@ -149,7 +160,7 @@ const statLabelStyle: React.CSSProperties = {
 const statValueStyle: React.CSSProperties = {
   margin: 0,
   fontFamily: 'Georgia, serif',
-  fontSize: '28px', // Scaled down font size to fit neatly
+  fontSize: '28px',
   fontWeight: 'normal',
   color: '#1f2e23'
 };
@@ -166,15 +177,15 @@ const wearTodayCardStyle: React.CSSProperties = {
   background: '#dbe7dc',
   border: '1px solid #b8d1bb',
   borderRadius: '10px',
-  padding: '24px',          // Increased padding
-  width: '340px',          // Wider box layout
+  padding: '24px',
+  width: '340px',
   boxSizing: 'border-box',
   alignItems: 'center'
 };
 
 const checkmarkBtnStyle: React.CSSProperties = {
-  width: '32px',           // Larger button
-  height: '32px',          // Larger button
+  width: '32px',
+  height: '32px',
   borderRadius: '50%',
   background: '#2d4a36',
   color: '#ffffff',
